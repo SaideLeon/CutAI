@@ -1,0 +1,6 @@
+{
+  "name": "AI AutoCut",
+  "description": "An automated AI video editor that transcribes raw footage and makes perfect cuts for YouTube based on secondary narration audio scripts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
