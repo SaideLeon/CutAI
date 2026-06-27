@@ -58,6 +58,10 @@ fun EditorScreen(
     val currentTimeMs by viewModel.currentTimeMs.collectAsState()
     val selectedCutId by viewModel.selectedCutId.collectAsState()
 
+    val manualApiKey by viewModel.manualApiKey.collectAsState()
+    var showApiKeyDialog by remember { mutableStateOf(false) }
+    var tempApiKey by remember(manualApiKey) { mutableStateOf(manualApiKey) }
+
     var activeTab by remember { mutableStateOf(0) } // 0: Original Audio, 1: Secondary Narration
     var newNarrationText by remember { mutableStateOf("") }
 
@@ -105,6 +109,16 @@ fun EditorScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { showApiKeyDialog = true },
+                        modifier = Modifier.testTag("configure_api_key_editor_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VpnKey,
+                            contentDescription = "Configure API Key",
+                            tint = if (manualApiKey.isNotBlank()) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                     Button(
                         onClick = onNavigateToExport,
                         enabled = cuts.isNotEmpty(),
@@ -277,12 +291,78 @@ fun EditorScreen(
                 Text(
                     "No custom GEMINI_API_KEY found in project secrets. " +
                     "To demonstrate robust features seamlessly, AI AutoCut is executing our high-fidelity, contextual video scene matching engine offline. " +
-                    "To run real live Gemini multimodal analysis, enter your key in the AI Studio Secrets panel!"
+                    "To run real live Gemini multimodal analysis, enter your key manually below or in the AI Studio Secrets panel!"
                 )
             },
             confirmButton = {
                 Button(onClick = { viewModel.dismissApiWarning() }) {
                     Text("Got it")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissApiWarning()
+                    showApiKeyDialog = true
+                }) {
+                    Text("Configurar Chave")
+                }
+            }
+        )
+    }
+
+    // Manual API Key config dialog inside editor screen
+    if (showApiKeyDialog) {
+        AlertDialog(
+            onDismissRequest = { showApiKeyDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.VpnKey,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Configurar Chave API")
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Insira sua chave de API do Gemini para realizar análise de vídeo real e auto-cuts. Sua chave será salva localmente no dispositivo.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = tempApiKey,
+                        onValueChange = { tempApiKey = it },
+                        label = { Text("Chave API do Gemini") },
+                        placeholder = { Text("AIzaSy...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    if (tempApiKey.isNotBlank() && tempApiKey.startsWith("AIzaSy")) {
+                        Text(
+                            "✓ Chave no formato correto",
+                            color = Color(0xFF2E7D32),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.saveManualApiKey(tempApiKey)
+                        showApiKeyDialog = false
+                    }
+                ) {
+                    Text("Salvar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showApiKeyDialog = false }) {
+                    Text("Cancelar")
                 }
             }
         )
@@ -333,7 +413,7 @@ fun VideoPlayerWidget(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Scene: ${VideoPresets.getVisualSceneAtTime(project.videoType, currentTimeMs)}",
+                        text = "Scene: ${VideoPresets.getVisualSceneAtTime(project.videoType, currentTimeMs, project.description)}",
                         color = Color.White,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,

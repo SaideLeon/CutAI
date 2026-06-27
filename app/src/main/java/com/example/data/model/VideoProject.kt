@@ -76,7 +76,7 @@ object VideoPresets {
         )
     )
 
-    fun getVisualSceneAtTime(type: String, timeMs: Long): String {
+    fun getVisualSceneAtTime(type: String, timeMs: Long, customDescription: String? = null): String {
         return when (type) {
             TYPE_SCHOOL -> {
                 when {
@@ -96,7 +96,7 @@ object VideoPresets {
                     else -> "A visual of spaghetti on a pristine white plate, garnished with oil and fresh basil leaves."
                 }
             }
-            else -> "Custom raw camera footage."
+            else -> customDescription ?: "Custom raw camera footage."
         }
     }
 }

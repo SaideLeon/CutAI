@@ -58,7 +58,9 @@ class VideoRepository(
         narrations: List<String>,
         useMockFallback: Boolean = false
     ): List<VideoCut> = withContext(Dispatchers.IO) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+        val sharedPrefs = context.getSharedPreferences("autocut_prefs", Context.MODE_PRIVATE)
+        val customApiKey = sharedPrefs.getString("gemini_api_key", "") ?: ""
+        val apiKey = if (customApiKey.isNotBlank()) customApiKey else BuildConfig.GEMINI_API_KEY
 
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY" || useMockFallback) {
             Log.d("VideoRepository", "Using high-fidelity local alignment fallback")

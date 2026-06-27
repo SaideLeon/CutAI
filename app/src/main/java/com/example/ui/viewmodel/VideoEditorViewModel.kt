@@ -38,6 +38,10 @@ class VideoEditorViewModel(
     private val _currentCuts = MutableStateFlow<List<VideoCut>>(emptyList())
     val currentCuts = _currentCuts.asStateFlow()
 
+    // Manual API Key State Flow
+    private val _manualApiKey = MutableStateFlow("")
+    val manualApiKey = _manualApiKey.asStateFlow()
+
     // State of AI operations
     private val _isTranscribing = MutableStateFlow(false)
     val isTranscribing = _isTranscribing.asStateFlow()
@@ -63,6 +67,10 @@ class VideoEditorViewModel(
     val draftNarrations = mutableStateListOf<String>()
 
     init {
+        // Load manual API key from SharedPreferences
+        val sharedPrefs = application.getSharedPreferences("autocut_prefs", android.content.Context.MODE_PRIVATE)
+        _manualApiKey.value = sharedPrefs.getString("gemini_api_key", "") ?: ""
+
         // Observe current active cuts dynamically
         _currentProjectId
             .filterNotNull()
@@ -73,6 +81,12 @@ class VideoEditorViewModel(
                 _currentCuts.value = cuts
             }
             .launchIn(viewModelScope)
+    }
+
+    fun saveManualApiKey(key: String) {
+        val sharedPrefs = getApplication<Application>().getSharedPreferences("autocut_prefs", android.content.Context.MODE_PRIVATE)
+        sharedPrefs.edit().putString("gemini_api_key", key.trim()).apply()
+        _manualApiKey.value = key.trim()
     }
 
     fun selectProject(projectId: Int) {
@@ -100,26 +114,45 @@ class VideoEditorViewModel(
                         "Next, he tosses the spaghetti directly in the skillet.",
                         "Finally, the plate is beautifully served with fresh basil."
                     ))
+                } else {
+                    // For custom projects, provide a couple of starter narrations if empty
+                    draftNarrations.addAll(listOf(
+                        "Here is the exciting start of our custom footage.",
+                        "And here is the conclusion of our custom video cut."
+                    ))
                 }
             }
         }
     }
 
-    fun createProject(title: String, type: String) {
+    fun createProject(
+        title: String,
+        type: String,
+        customPath: String? = null,
+        durationMs: Long = 60000L,
+        description: String = "",
+        transcript: String = ""
+    ) {
         viewModelScope.launch {
-            val description = if (type == VideoPresets.TYPE_SCHOOL) {
+            val desc = if (type == "custom") {
+                description
+            } else if (type == VideoPresets.TYPE_SCHOOL) {
                 VideoPresets.PRESET_PROJECTS[0].description
             } else {
                 VideoPresets.PRESET_PROJECTS[1].description
             }
 
-            val originalTranscript = if (type == VideoPresets.TYPE_SCHOOL) {
+            val originalTranscript = if (type == "custom") {
+                transcript
+            } else if (type == VideoPresets.TYPE_SCHOOL) {
                 VideoPresets.PRESET_PROJECTS[0].originalTranscript
             } else {
                 VideoPresets.PRESET_PROJECTS[1].originalTranscript
             }
 
-            val duration = if (type == VideoPresets.TYPE_SCHOOL) {
+            val duration = if (type == "custom") {
+                durationMs
+            } else if (type == VideoPresets.TYPE_SCHOOL) {
                 VideoPresets.PRESET_PROJECTS[0].durationMs
             } else {
                 VideoPresets.PRESET_PROJECTS[1].durationMs
@@ -128,8 +161,9 @@ class VideoEditorViewModel(
             val project = VideoProject(
                 title = title,
                 videoType = type,
+                customVideoPath = customPath,
                 durationMs = duration,
-                description = description,
+                description = desc,
                 originalTranscript = originalTranscript
             )
             val newId = repository.insertProject(project)
@@ -182,8 +216,10 @@ class VideoEditorViewModel(
 
         viewModelScope.launch {
             _isAutoCutting.value = true
-            _showApiWarning.value = com.example.BuildConfig.GEMINI_API_KEY.isEmpty() || 
-                    com.example.BuildConfig.GEMINI_API_KEY == "MY_GEMINI_API_KEY"
+            
+            val manualKey = _manualApiKey.value
+            val apiKey = if (manualKey.isNotBlank()) manualKey else com.example.BuildConfig.GEMINI_API_KEY
+            _showApiWarning.value = apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY"
 
             val cuts = repository.alignNarrationsWithVideo(project, draftNarrations.toList(), forceMock)
             repository.saveCuts(project.id, cuts)
